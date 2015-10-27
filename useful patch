@@ -1,0 +1,94 @@
+# coding=gbk
+# _author__ = 'lzhq'
+
+import piexif
+import datetime
+
+def photoTimeSeperate(DateTimeString):
+    #ph法为2015:06:08 09:11:39, 从这样的字符串DateTimeString中得到时间
+    theUTCtime = None
+    DateTimeString = DateTimeString.decode()
+    if (" " in DateTimeString):
+        theDate = DateTimeString.split(" ")[0]
+        if (theDate.count(":")) == 2:
+            theYear = theDate.split(":")[0]
+            theMonth = theDate.split(":")[1]
+            theDay =  theDate.split(":")[2]
+        theTime = DateTimeString.split(" ")[1]
+        if (theTime.count(":")) == 2:
+            theHour = theTime.split(":")[0]
+            theMinute = theTime.split(":")[1]
+            theSeconds  = theTime.split(":")[2]
+        theUTCtime = datetime.datetime(int(theYear) ,int(theMonth),int(theDay),int(theHour),int(theMinute),int(theSeconds))
+        #print(theUTCtime)
+    return  theUTCtime
+
+
+def get_exif_info(photoname):
+    lat = None
+    longtitude = None
+
+    exif_dict = piexif.load(photoname)
+    exifTime = photoTimeSeperate(exif_dict['Exif'][piexif.ExifIFD.DateTimeOriginal])
+    print(exifTime)
+
+    if 'GPS' in exif_dict:
+        if piexif.GPSIFD.GPSAltitude in exif_dict['GPS']:
+            temp1 = exif_dict['GPS'][piexif.GPSIFD.GPSAltitude]
+            alt = temp1[0] / temp1[1]
+            print("alt", alt, temp1)
+        if piexif.GPSIFD.GPSLatitudeRef in exif_dict['GPS']:
+            temp5 = exif_dict['GPS'][piexif.GPSIFD.GPSLatitudeRef]
+        if piexif.GPSIFD.GPSLatitude in exif_dict['GPS']:
+            temp6 = exif_dict['GPS'][piexif.GPSIFD.GPSLatitude]
+            longtitude = temp6[0][0] / temp6[0][1] + temp6[1][0] / temp6[1][1] / 60 + temp6[2][0] / temp6[2][1] / 3600
+            if temp5 != b'N':
+                longtitude = -longtitude
+            print(longtitude, temp6)
+
+        if piexif.GPSIFD.GPSLongitudeRef in exif_dict['GPS']:
+            temp7 = exif_dict['GPS'][piexif.GPSIFD.GPSLongitudeRef]
+        if piexif.GPSIFD.GPSLongitude in exif_dict['GPS']:
+            temp8 = exif_dict['GPS'][piexif.GPSIFD.GPSLongitude]
+            lat = temp8[0][0] / temp8[0][1] + temp8[1][0] / 60 / temp8[1][1] + (temp8[2][0] / 3600) / temp8[2][1]
+            if temp7 != b'E':
+                lat = -lat
+            print(lat, temp8)
+
+    return lat, longtitude, exifTime
+
+def set_exif_geo_info(photoname,lat,lon):
+    print("set file %s geo_info %f %f" % (photoname,lat,lon ))
+    exif_dict = piexif.load(photoname)
+    if lat > 0 :
+        exif_dict['GPS'][piexif.GPSIFD.GPSLatitudeRef] = b'N'
+    else:
+        exif_dict['GPS'][piexif.GPSIFD.GPSLatitudeRef] = b'S'
+        lat = -lat
+    if lon > 0 :
+        exif_dict['GPS'][piexif.GPSIFD.GPSLongitudeRef]= b'E'
+    else:
+        exif_dict['GPS'][piexif.GPSIFD.GPSLongitudeRef]= b'W'
+        lon = - lon
+
+    Degree = int(lat)
+    L2 = (lat - Degree) * 60
+    Min = int(L2)
+    L3 = (L2 - Min) * 60
+    Second = int(L3 * 500)
+    print(Degree,Min,Second )
+    exif_dict['GPS'][piexif.GPSIFD.GPSLatitude] =  [(Degree,1),(Min,1),(Second,500)]
+
+    Degree = int(lon)
+    L2 = (lon - Degree) * 60
+    Min = int(L2)
+    L3 = (L2 - Min) * 60
+    Second = int(L3 * 500)
+    print(Degree,Min,Second )
+    exif_dict['GPS'][piexif.GPSIFD.GPSLongitude]= [(Degree,1),(Min,1),(Second,500)]
+
+    exif_bytes = piexif.dump(exif_dict)
+    piexif.insert(exif_bytes,photoname)
+
+get_exif_info("D:/4.jpg")
+set_exif_geo_info("D:/4.jpg",43.123,87.524)
